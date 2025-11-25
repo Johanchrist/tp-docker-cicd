@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Docker Compose App with Database</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>📝 Message Board</h1>
+        
+        <!-- Formulaire d'ajout de message -->
+        <div class="message-form">
+            <textarea id="messageInput" placeholder="Type your message here..." rows="3"></textarea>
+            <button onclick="addMessage()">Post Message</button>
+        </div>
+
+        <!-- Bouton pour rafraîchir les messages -->
+        <button onclick="loadMessages()" class="refresh-btn">Refresh Messages</button>
+
+        <!-- Affichage des messages -->
+        <div id="messagesList" class="messages-container">
+            <p>Loading messages...</p>
+        </div>
+
+        <!-- Statut de la base de données -->
+        <div id="dbStatus" class="status"></div>
+    </div>
+
+    <script>
+        // Charger les messages au démarrage
+        document.addEventListener('DOMContentLoaded', function() {
+            loadMessages();
+            checkDatabaseHealth();
+        });
+
+        async function loadMessages() {
+            const messagesList = document.getElementById('messagesList');
+            
+            try {
+                const response = await fetch('http://localhost:3000/api/messages');
+                const data = await response.json();
+                
+                if (data.success && data.messages) {
+                    if (data.messages.length === 0) {
+                        messagesList.innerHTML = '<p>No messages yet. Be the first to post!</p>';
+                    } else {
+                        messagesList.innerHTML = data.messages.map(msg => `
+                            <div class="message">
+                                <div class="message-content">${msg.content}</div>
+                                <div class="message-time">${new Date(msg.created_at).toLocaleString()}</div>
+                            </div>
+                        `).join('');
+                    }
+                } else {
+                    messagesList.innerHTML = '<p style="color: red;">Error loading messages</p>';
+                }
+            } catch (error) {
+                messagesList.innerHTML = `
+                    <p style="color: red;">Error: ${error.message}</p>
+                    <p>Make sure the backend is running on localhost:3000</p>
+                `;
+                console.error('Load messages error:', error);
+            }
+        }
+
+        async function addMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const content = messageInput.value.trim();
+            
+            if (!content) {
+                alert('Please enter a message');
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:3000/api/messages', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ content })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    messageInput.value = ''; // Clear input
+                    loadMessages(); // Reload messages
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to post message'));
+                }
+            } catch (error) {
+                alert('Error posting message: ' + error.message);
+                console.error('Add message error:', error);
+            }
+        }
+
+        async function checkDatabaseHealth() {
+            try {
+                const response = await fetch('http://localhost:3000/api/health');
+                const data = await response.json();
+                
+                const statusDiv = document.getElementById('dbStatus');
+                if (data.success && data.database === 'connected') {
+                    statusDiv.innerHTML = '<p style="color: green;">✅ Database connected</p>';
+                } else {
+                    statusDiv.innerHTML = '<p style="color: orange;">⚠️ Database issues</p>';
+                }
+            } catch (error) {
+                const statusDiv = document.getElementById('dbStatus');
+                statusDiv.innerHTML = '<p style="color: red;">❌ Database connection failed</p>';
+            }
+        }
+
+        // Permettre l'envoi avec Ctrl+Enter
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                addMessage();
+            }
+        });
+    </script>
+</body>
+</html>
